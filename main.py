@@ -7,6 +7,7 @@ from flask_sslify import SSLify
 import schedule
 import time
 from threading import Thread
+import sqlite3
 
 IS_DEVELOPMENT = bool(os.getenv('DEVELOPMENT'))
 
@@ -19,12 +20,7 @@ MENU_APP_URL = os.getenv('MENU_APP_URL_DEV') if IS_DEVELOPMENT else os.getenv('M
 TOKEN = os.getenv('TOKEN_DEV') if IS_DEVELOPMENT else os.getenv('TOKEN_PROD')
 WEBHOOK_URL = os.getenv('WEBHOOK_URL_DEV') if IS_DEVELOPMENT else os.getenv('WEBHOOK_URL_PROD')
 BOT_URL = f"https://api.telegram.org/bot{TOKEN}"
-
-# set webhook -> https://api.telegram.org/bot7485247044:AAHFhxzgOdizlavvjRp5QizAY7GVScp9DlE/setWebhook?url=https://47f3-83-32-241-13.ngrok-free.app
-
-# https://www.youtube.com/watch?v=OgPQB-G3EPw
-# https://www.youtube.com/watch?v=XiBA5LRQFLM
-# https://www.youtube.com/watch?v=OgPQB-G3EPw
+API_URL = f"https://127.0.0.1:3001"
 
 startMessage: str = (
     "🎉 Welcome to CTB's MiniApp! 🎉\n\n"
@@ -40,7 +36,7 @@ startMessage2: str = (
 )
 
 app = Flask(__name__)
-# sslify = SSLify(app)
+sslify = SSLify(app)
 
 def parseMsg(message):
     chatId = message['message']['chat']['id']
@@ -54,32 +50,18 @@ def parseMsg(message):
 
 def sendMessage(chatId, text, inline_keyboard={}):
     url = f'{BOT_URL}/sendMessage'
-    print(url)
     payload = {'chat_id': chatId, 'text': text}
-    print(payload)
     if inline_keyboard:
         payload['reply_markup'] = inline_keyboard
     print('preparing request...')
     requests.post(url, json=payload)
 
-def sendDailyMessage():
-    # Fetch the list of chat IDs from your database or a stored list
-    chat_ids = getChatIds()
-    for chat_id in chat_ids:
-        sendMessage(chat_id, "Good morning! Have a great day! ☀️")
-
-# def setMenuButton():
-#     url = f'{BOT_URL}/setChatMenuButton'
-#     payload = {
-#         'menu_button': {
-#             'type': 'web_app',
-#             'text': '🕹️ Play',
-#             'web_app': {
-#                 'url': MENU_APP_URL
-#             }
-#         }
-#     }
-#     requests.post(url, json=payload)
+def updateUserChatId(chatId, userId):
+    url = f"{API_URL}/api/user?id={userId}"
+    payload = {"chat_id": chatId}
+    print(url, payload)
+    requests.post(url, json=payload)
+    return True
 
 @app.route('/', methods=['POST', 'GET'])
 def index() -> str:
@@ -87,7 +69,9 @@ def index() -> str:
         msg = request.get_json()    
         chatId, symbol = parseMsg(msg)
 
-        print(chatId, symbol)
+        userId = msg['message']['from']['id']
+
+        # print(chatId, symbol)
 
         if symbol == 'start':
             inline_keyboard = {
@@ -96,7 +80,9 @@ def index() -> str:
                 ]]
             }
             print("sending message...")
+            updateUserChatId(chatId, userId)
             sendMessage(chatId=chatId, text="jola", inline_keyboard=inline_keyboard)
+            
             print("message sent")
 
         return Response('ok', status=200)
